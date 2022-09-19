@@ -1,0 +1,6 @@
+conda create -y -n ForGraduation python=3.7
+conda activate ForGraduation
+conda install -y -c pytorch torchvision torchaudio cudatoolkit=11.6 -c pytorch -c conda-forge
+conda install -y -c conda-forge stable-baselines3
+conda install -y -c conda-forge gym-all
+conda install -y -c "conda-forge/label/cf202003" tensorboard
