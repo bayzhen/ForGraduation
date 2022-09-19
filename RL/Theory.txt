@@ -1,0 +1,4 @@
+1、ODQN是对stable_baselines3的DQN的重写，在main.py中将不会再载入"from stable_baselines3 import DQN"，而是载入：ODQN。
+2、我需要画表，所以需要导入matplotlib。
+3、我需要统计奖励的分布，横轴是训练轮数，纵轴是不同奖励的占比。
+

@@ -1,16 +1,15 @@
 import gym
+from ODQN import DQN
 
-from stable_baselines3 import DQN
-
-env = gym.make("CartPole-v0")
+env = gym.make("LunarLander-v2")
 
 model = DQN("MlpPolicy", env, verbose=1, tensorboard_log='./DQN/')
 model.learn(total_timesteps=100000, log_interval=4)
-model.save("dqn_cartpole")
+model.save("dqn_LunarLander-v2")
 
 del model  # remove to demonstrate saving and loading
 
-model = DQN.load("dqn_cartpole")
+model = DQN.load("dqn_LunarLander-v2")
 
 obs = env.reset()
 while True:
