@@ -16,6 +16,7 @@ class TensorboardCallback(BaseCallback):
         # Log scalar value (here a random variable)
         value = np.random.random()
         self.logger.record("random_value", value)
+        self.logger.dump(self.num_timesteps)
         return True
 
 
@@ -26,3 +27,4 @@ model.learn(total_timesteps=10000, log_interval=4, callback=TensorboardCallback(
 model.save("dqn_lunar_lander_v2")
 
 del model  # remove to demonstrate saving and loading
+print("finished")

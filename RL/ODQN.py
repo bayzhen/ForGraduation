@@ -7,7 +7,7 @@ import torch as th
 from torch.nn import functional as F
 
 from stable_baselines3.common.buffers import ReplayBuffer
-from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
+from off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.preprocessing import maybe_transpose
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import get_linear_fn, is_vectorized_observation, polyak_update
