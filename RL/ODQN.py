@@ -173,7 +173,6 @@ class DQN(OffPolicyAlgorithm):
         self.policy.set_training_mode(True)
         # Update learning rate according to schedule
         self._update_learning_rate(self.policy.optimizer)
-
         losses = []
         for _ in range(gradient_steps):
             # Sample replay buffer
@@ -254,7 +253,6 @@ class DQN(OffPolicyAlgorithm):
         eval_log_path: Optional[str] = None,
         reset_num_timesteps: bool = True,
     ) -> OffPolicyAlgorithm:
-
         return super(DQN, self).learn(
             total_timesteps=total_timesteps,
             callback=callback,
@@ -272,5 +270,4 @@ class DQN(OffPolicyAlgorithm):
 
     def _get_torch_save_params(self) -> Tuple[List[str], List[str]]:
         state_dicts = ["policy", "policy.optimizer"]
-
         return state_dicts, []
