@@ -1,5 +1,5 @@
 import gym
-from ODQN import DQN
+from override.ODQN import DQN
 import numpy as np
 
 env = gym.make("LunarLander-v2")
