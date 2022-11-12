@@ -115,6 +115,7 @@ class DQN(OffPolicyAlgorithm):
             support_multi_env=True,
         )
 
+        self.algorithm_name = "DQN"
         self.exploration_initial_eps = exploration_initial_eps
         self.exploration_final_eps = exploration_final_eps
         self.exploration_fraction = exploration_fraction

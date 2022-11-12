@@ -154,7 +154,6 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         # For gSDE only
         self.use_sde_at_warmup = use_sde_at_warmup
 
-        self.rewards_record = []
         self.single_episode_rewards_record = []
 
     def _convert_train_freq(self) -> None:
@@ -586,7 +585,6 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             new_obs, rewards, dones, infos = env.step(actions)
             if len(infos[0]) != 0:
                 self.single_episode_rewards_record = np.append(self.single_episode_rewards_record, rewards[0])
-                self.rewards_record = np.append(self.rewards_record, self.single_episode_rewards_record)
                 self.single_episode_rewards_record = []
             else:
                 self.single_episode_rewards_record = np.append(self.single_episode_rewards_record, rewards[0])
