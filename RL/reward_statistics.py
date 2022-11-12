@@ -3,7 +3,7 @@ import numpy as np
 from stable_baselines3 import DQN, PPO, DDPG
 from stable_baselines3.common.callbacks import BaseCallback
 
-
+# 尝试callback
 class TensorboardCallback(BaseCallback):
     """
     Custom callback for plotting additional values in tensorboard.
@@ -24,7 +24,7 @@ env = gym.make("LunarLander-v2")
 
 model = DQN("MlpPolicy", env, verbose=1, tensorboard_log='./DQN/')
 model.learn(total_timesteps=10000, log_interval=4, callback=TensorboardCallback())
-model.save("dqn_lunar_lander_v2")
+model.save("model/dqn_lunar_lander_v2")
 
 del model  # remove to demonstrate saving and loading
 print("finished")
