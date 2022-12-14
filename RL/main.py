@@ -32,7 +32,7 @@ class TV:
         pass
 
     def dqn(self):
-        self.model = DQN("MlpPolicy", self.env, verbose=1, tensorboard_log='./DQN/')
+        self.model = DQN("MlpPolicy", self.env, verbose=1, tensorboard_log='./tenborboard/')
         self.model.learn(total_timesteps=250000, log_interval=10)
 
         latest_path = get_last_path(self.algorithm)
