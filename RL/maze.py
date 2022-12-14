@@ -24,8 +24,10 @@ def get_edge_position_between_two_points(two_points):
 
 
 class MazeOriginal:
-    def __init__(self, is_random=True, x=10, y=10):
+    def __init__(self, is_random=True, x=10, y=10, hit_wall_reward=-1, walk_reward=-0.1):
         self.maze_size_x, self.maze_size_y = x, y
+        self.hit_wall_reward = hit_wall_reward
+        self.walk_reward = walk_reward
         # 智能体当前位置
         self.current_x, self.current_y = 1, 1
         # 目标位置
@@ -120,7 +122,7 @@ class MazeOriginal:
             self.regenerate_maze_frame()
 
     def game_step(self, action):
-        reward = -0.1
+        reward = self.walk_reward
         done = False
         if action == 0:
             next_point = [self.current_x - 1, self.current_y]
@@ -139,7 +141,7 @@ class MazeOriginal:
         two_points = [[self.current_x, self.current_y], next_point]
         self.step_count = self.step_count + 1
         if self.get_edge(two_points) == 1 or self.get_edge(two_points) == 2:
-            reward = -1
+            reward = self.hit_wall_reward
         else:
             self.current_x, self.current_y = next_point[0], next_point[1]
 
@@ -158,9 +160,10 @@ class Maze(gym.Env, MazeOriginal, EzPickle):
     path_color = (1, 1, 1)
     agent_color = (0, 1, 0)
 
-    def __init__(self, is_random=True, use_image=True, x=10, y=10):
+    def __init__(self, is_random=True, use_image=True, x=10, y=10, hit_wall_reward=-1, walk_reward=-0.1):
         # EzPickle是读取和存储硬盘上的数据的包，没用，但可以留着。
-        MazeOriginal.__init__(self, is_random=is_random, x=x, y=y)
+        MazeOriginal.__init__(self, is_random=is_random, x=x, y=y, hit_wall_reward=hit_wall_reward,
+                              walk_reward=walk_reward)
         EzPickle.__init__(self)
         self.use_image = use_image
         if self.use_image:
