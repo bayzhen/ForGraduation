@@ -60,11 +60,14 @@ class QLearning:
         print("steps:", step)
         print("calculate_count:", self.calculate_count)
         print('--------------------')
+        if np.average(self.steps_list) < 20:
+            return True
 
     def learn(self, total_steps):
         done_count = 0
         sum_rewards = 0
         step_count = 0
+        step = 0
         for step in range(total_steps):
             if self.done:
                 self.pre_state = self.env.reset()
@@ -86,10 +89,14 @@ class QLearning:
                 self.steps_list[self.pos] = step_count
                 self.rewards_list[self.pos] = sum_rewards
                 self.pos = (self.pos + 1) % 10
+                end = False
                 if done_count % 10 == 0:
-                    self.display(step)
+                    end = self.display(step)
                 sum_rewards = 0
                 step_count = 0
+                if end:
+                    break
+        return step, self.calculate_count
 
 
 class UniqueQLearning(QLearning):
@@ -152,6 +159,17 @@ class BetterQLearning(UniqueQLearning):
                     self.display(step)
                 sum_rewards = 0
                 step_count = 0
+
+
+def algorithms_compare(*models: QLearning):
+    data = []
+    game_env = Maze(use_image=False, is_random=False, x=10, y=10, hit_wall_reward=0, walk_reward=0)
+    for model in models:
+        for i in range(100):
+            model.__init__(game_env)
+            step, calculate_count = model.learn(1000000)
+
+    pass
 
 
 if __name__ == '__main__':
