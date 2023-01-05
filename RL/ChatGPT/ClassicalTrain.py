@@ -25,6 +25,7 @@ class MyReplayBuffer(ReplayBuffer):
                                              optimize_memory_usage=False,
                                              handle_timeout_termination=True)
         self.td_error = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
+        self.gpu_device = "cuda:0"
 
     def sample(self, batch_size: int, env: Optional[VecNormalize] = None):
         """
@@ -39,14 +40,25 @@ class MyReplayBuffer(ReplayBuffer):
 
     def my_sample(self, net, gamma, batch_size: int, env: Optional[VecNormalize] = None):
         with th.no_grad():
-            next_observations = th.tensor(self.next_observations).to(self.device)
+            next_observations = th.tensor(self.next_observations).to(self.gpu_device)
             next_q_values = net(next_observations)
             # Follow greedy policy: use the one with the highest value
             next_q_values, _ = next_q_values.max(dim=1)
             # Avoid potential broadcast issue
             next_q_values = next_q_values.reshape(-1, 1)
-            target_q_values = self.rewards + (1 - self.dones) * gamma * next_q_values
-            self.td_error = net(self.observations) - target_q_values
+            rewards = th.tensor(self.rewards).to(self.gpu_device)
+            dones = th.tensor(self.dones).to(self.gpu_device)
+            target_q_values = rewards + (1 - dones) * gamma * next_q_values
+            observations = th.tensor(self.observations).to(self.gpu_device)
+            values, indices = th.max(net(observations), dim=1)
+            values = values.reshape(-1, 1)
+            del next_observations
+            del next_q_values
+            del rewards
+            del dones
+            del observations
+            del indices
+            td_error = values - target_q_values
 
 
 if __name__ == '__main__':
