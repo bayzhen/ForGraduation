@@ -177,8 +177,6 @@ class DQN(OffPolicyAlgorithm):
         for _ in range(gradient_steps):
             # Sample replay buffer
             replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
-            replay_data = self.replay_buffer.my_sample(net=self.q_net_target, batch_size=batch_size, gamma=self.gamma,
-                                                       env=self._vec_normalize_env)
             with th.no_grad():
                 # Compute the next Q-values using the target network
                 next_q_values = self.q_net_target(replay_data.next_observations)
