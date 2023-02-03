@@ -459,7 +459,7 @@ class TVReplayBuffer(BaseBuffer):
         ### Sample from buffer
         """
         if self.best_indexes is not None:
-            best_indexes = np.random.choice(self.best_indexes, size=int(batch_size * 0))
+            best_indexes = np.random.choice(self.best_indexes, size=int(batch_size * 0.1))
         else:
             best_indexes = np.array([]).astype(int)
         random_indexes_size = batch_size - best_indexes.size
@@ -1088,7 +1088,15 @@ if __name__ == '__main__':
     envs = ["Acrobot-v1",
             "CartPole-v1",
             "MountainCar-v0",
-            "LunarLander-v2"]
+            "LunarLander-v2",
+            "ALE/Breakout-v5",
+            "ALE/Pong-v5",
+            "ALE/SpaceInvaders-v5"
+            "ALE/MsPacman-v5",
+            "ALE/Alien-v5",
+            "ALE/Amidar-v5",
+            "ALE/Assault-v5",
+            "ALE/BankHeist-v5"]
     threads = []
     print(threading.activeCount())
     for env in envs:
