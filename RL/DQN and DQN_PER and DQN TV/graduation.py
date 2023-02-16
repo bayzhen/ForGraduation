@@ -1083,28 +1083,31 @@ import threading
 import time
 
 from stable_baselines3.dqn import DQN
-
+from stable_baselines3.common.env_util import make_atari_env
+from stable_baselines3.common.vec_env import VecFrameStack
 if __name__ == '__main__':
-    envs = ["Acrobot-v1",
-            "CartPole-v1",
-            "MountainCar-v0",
-            "LunarLander-v2",
+    envs = [
+            # "Acrobot-v1",
+            # "CartPole-v1",
+            # "MountainCar-v0",
+            # "LunarLander-v2",
             "ALE/Breakout-v5",
             "ALE/Pong-v5",
-            "ALE/SpaceInvaders-v5"
+            "ALE/SpaceInvaders-v5",
             "ALE/MsPacman-v5",
             "ALE/Alien-v5",
             "ALE/Amidar-v5",
             "ALE/Assault-v5",
             "ALE/BankHeist-v5"]
     threads = []
-    print(threading.activeCount())
     for env in envs:
+        print(env)
         DQN_PER_game_env = gym.make(env)
         # Create the DQN model using a CNN policy and the PriorityReplayBuffer instance
         DQN_PER_model = DQN_PER("MlpPolicy",
                                 env=DQN_PER_game_env,
                                 replay_buffer_class=PrioritizedReplayBuffer,
+                    buffer_size=10_000,
                                 verbose=2,
                                 tensorboard_log='./DQN_PER/' + env)
         thread1 = threading.Thread(target=DQN_PER_model.learn, args=(200000,))
@@ -1113,6 +1116,7 @@ if __name__ == '__main__':
         DQN_game_env = gym.make(env)
         DQN_model = DQN("MlpPolicy",
                         env=DQN_game_env,
+                    buffer_size=10_000,
                         verbose=2,
                         tensorboard_log='./DQN/' + env)
         thread1 = threading.Thread(target=DQN_model.learn, args=(200000,))
@@ -1122,10 +1126,17 @@ if __name__ == '__main__':
         DQN_TV_model = DQN_TV("MlpPolicy",
                               env=DQN_game_env,
                               replay_buffer_class=TVReplayBuffer,
+                    buffer_size=10_000,
                               verbose=2,
                               tensorboard_log='./DQN_TV/' + env)
         thread1 = threading.Thread(target=DQN_TV_model.learn, args=(200000,))
         thread1.start()
+    # env = make_atari_env(envs[0],n_envs=4,seed=0)
+    # env = VecFrameStack(env,n_stack=4)
+    # DQN_PER("MlpPolicy",
+    # env=env,
+    # buffer_size=10_000,
+    # verbose=2).learn(100000)
 
     while True:
         time.sleep(10)
