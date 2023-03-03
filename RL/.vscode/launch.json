@@ -8,7 +8,7 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            "program": "DQN and DQN_PER and DQN TV\\graduation.py",
+            "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
         }

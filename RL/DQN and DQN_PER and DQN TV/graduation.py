@@ -64,16 +64,18 @@ class PrioritizedReplayBuffer(BaseBuffer):
     """
 
     def __init__(
-            self,
-            buffer_size: int,
-            observation_space: spaces.Space,
-            action_space: spaces.Space,
-            device: Union[th.device, str] = "auto",
-            n_envs: int = 1,
-            optimize_memory_usage: bool = False,
-            handle_timeout_termination: bool = True,
+        self,
+        buffer_size: int,
+        observation_space: spaces.Space,
+        action_space: spaces.Space,
+        device: Union[th.device, str] = "auto",
+        n_envs: int = 1,
+        optimize_memory_usage: bool = False,
+        handle_timeout_termination: bool = True,
     ):
-        super().__init__(buffer_size, observation_space, action_space, device, n_envs=n_envs)
+        super().__init__(
+            buffer_size, observation_space, action_space, device, n_envs=n_envs
+        )
 
         # Adjust buffer size
         self.buffer_size = max(buffer_size // n_envs, 1)
@@ -97,20 +99,27 @@ class PrioritizedReplayBuffer(BaseBuffer):
 
         # Maintain segment binary trees to take sum and find minimum over a range
         self.priority_sum = [0 for _ in range(2 * self.buffer_size)]
-        self.priority_min = [float('inf') for _ in range(2 * self.buffer_size)]
+        self.priority_min = [float("inf") for _ in range(2 * self.buffer_size)]
 
         self.max_priority = 1
 
-        self.observations = np.zeros((self.buffer_size, self.n_envs) + self.obs_shape, dtype=observation_space.dtype)
+        self.observations = np.zeros(
+            (self.buffer_size, self.n_envs) + self.obs_shape,
+            dtype=observation_space.dtype,
+        )
 
         if optimize_memory_usage:
             # `observations` contains also the next observation
             self.next_observations = None
         else:
-            self.next_observations = np.zeros((self.buffer_size, self.n_envs) + self.obs_shape,
-                                              dtype=observation_space.dtype)
+            self.next_observations = np.zeros(
+                (self.buffer_size, self.n_envs) + self.obs_shape,
+                dtype=observation_space.dtype,
+            )
 
-        self.actions = np.zeros((self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype)
+        self.actions = np.zeros(
+            (self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype
+        )
 
         self.rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
         self.dones = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
@@ -120,7 +129,12 @@ class PrioritizedReplayBuffer(BaseBuffer):
         self.timeouts = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
 
         if psutil is not None:
-            total_memory_usage = self.observations.nbytes + self.actions.nbytes + self.rewards.nbytes + self.dones.nbytes
+            total_memory_usage = (
+                self.observations.nbytes
+                + self.actions.nbytes
+                + self.rewards.nbytes
+                + self.dones.nbytes
+            )
 
             if self.next_observations is not None:
                 total_memory_usage += self.next_observations.nbytes
@@ -135,13 +149,13 @@ class PrioritizedReplayBuffer(BaseBuffer):
                 )
 
     def add(
-            self,
-            obs: np.ndarray,
-            next_obs: np.ndarray,
-            action: np.ndarray,
-            reward: np.ndarray,
-            done: np.ndarray,
-            infos: List[Dict[str, Any]],
+        self,
+        obs: np.ndarray,
+        next_obs: np.ndarray,
+        action: np.ndarray,
+        reward: np.ndarray,
+        done: np.ndarray,
+        infos: List[Dict[str, Any]],
     ) -> None:
         # Markov add
         idx = self.pos
@@ -159,7 +173,9 @@ class PrioritizedReplayBuffer(BaseBuffer):
         self.observations[self.pos] = np.array(obs).copy()
 
         if self.optimize_memory_usage:
-            self.observations[(self.pos + 1) % self.buffer_size] = np.array(next_obs).copy()
+            self.observations[(self.pos + 1) % self.buffer_size] = np.array(
+                next_obs
+            ).copy()
         else:
             self.next_observations[self.pos] = np.array(next_obs).copy()
 
@@ -168,7 +184,9 @@ class PrioritizedReplayBuffer(BaseBuffer):
         self.dones[self.pos] = np.array(done).copy()
 
         if self.handle_timeout_termination:
-            self.timeouts[self.pos] = np.array([info.get("TimeLimit.truncated", False) for info in infos])
+            self.timeouts[self.pos] = np.array(
+                [info.get("TimeLimit.truncated", False) for info in infos]
+            )
 
         self.pos += 1
         if self.pos == self.buffer_size:
@@ -176,27 +194,29 @@ class PrioritizedReplayBuffer(BaseBuffer):
             self.pos = 0
 
         # $p_i^\alpha$, new samples get `max_priority`
-        priority_alpha = self.max_priority ** self.alpha
+        priority_alpha = self.max_priority**self.alpha
         # Update the two segment trees for sum and minimum
         self._set_priority_min(idx, priority_alpha)
         self._set_priority_sum(idx, priority_alpha)
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
+    def sample(
+        self, batch_size: int, env: Optional[VecNormalize] = None
+    ) -> ReplayBufferSamples:
         """
         ### Sample from buffer
         """
         beta = 0.5
         # Initialize samples
         samples = {
-            'weights': np.zeros(shape=batch_size, dtype=np.float32),
-            'indexes': np.zeros(shape=batch_size, dtype=int)
+            "weights": np.zeros(shape=batch_size, dtype=np.float32),
+            "indexes": np.zeros(shape=batch_size, dtype=int),
         }
 
         # Get sample indexes
         for i in range(batch_size):
             p = random.random() * self._sum()
             idx = self.find_prefix_sum_idx(p)
-            samples['indexes'][i] = idx
+            samples["indexes"][i] = idx
 
         # $\min_i P(i) = \frac{\min_i p_i^\alpha}{\sum_k p_k^\alpha}$
         prob_min = self._min() / self._sum()
@@ -204,24 +224,29 @@ class PrioritizedReplayBuffer(BaseBuffer):
         max_weight = (prob_min * self.size()) ** (-beta)
 
         for i in range(batch_size):
-            idx = samples['indexes'][i]
+            idx = samples["indexes"][i]
             # $P(i) = \frac{p_i^\alpha}{\sum_k p_k^\alpha}$
             prob = self.priority_sum[idx + self.buffer_size] / self._sum()
             # $w_i = \bigg(\frac{1}{N} \frac{1}{P(i)}\bigg)^\beta$
             weight = (prob * self.size()) ** (-beta)
             # Normalize by $\frac{1}{\max_i w_i}$,
             #  which also cancels off the $\frac{1}{N}$ term
-            samples['weights'][i] = weight / max_weight
+            samples["weights"][i] = weight / max_weight
 
-        batch_inds = samples['indexes']
+        batch_inds = samples["indexes"]
 
         # Sample randomly the env idx
         env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
 
         if self.optimize_memory_usage:
-            next_obs = self._normalize_obs(self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :], env)
+            next_obs = self._normalize_obs(
+                self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :],
+                env,
+            )
         else:
-            next_obs = self._normalize_obs(self.next_observations[batch_inds, env_indices, :], env)
+            next_obs = self._normalize_obs(
+                self.next_observations[batch_inds, env_indices, :], env
+            )
 
         data = (
             self._normalize_obs(self.observations[batch_inds, env_indices, :], env),
@@ -229,15 +254,20 @@ class PrioritizedReplayBuffer(BaseBuffer):
             next_obs,
             # Only use dones that are not due to timeouts
             # deactivated by default (timeouts is initialized as an array of False)
-            (self.dones[batch_inds, env_indices] * (1 - self.timeouts[batch_inds, env_indices])).reshape(-1, 1),
-            self._normalize_reward(self.rewards[batch_inds, env_indices].reshape(-1, 1), env),
-            np.expand_dims(samples['weights'], axis=1),
-            np.expand_dims(samples['indexes'], axis=1)
+            (
+                self.dones[batch_inds, env_indices]
+                * (1 - self.timeouts[batch_inds, env_indices])
+            ).reshape(-1, 1),
+            self._normalize_reward(
+                self.rewards[batch_inds, env_indices].reshape(-1, 1), env
+            ),
+            np.expand_dims(samples["weights"], axis=1),
+            np.expand_dims(samples["indexes"], axis=1),
         )
         return CustomReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
     def _get_samples(
-            self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None
+        self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None
     ) -> Union[ReplayBufferSamples, RolloutBufferSamples]:
         pass
 
@@ -256,7 +286,9 @@ class PrioritizedReplayBuffer(BaseBuffer):
             # Get the index of the parent node
             idx //= 2
             # Value of the parent node is the minimum of it's two children
-            self.priority_min[idx] = min(self.priority_min[2 * idx], self.priority_min[2 * idx + 1])
+            self.priority_min[idx] = min(
+                self.priority_min[2 * idx], self.priority_min[2 * idx + 1]
+            )
 
     def _set_priority_sum(self, idx, priority):
         """
@@ -274,7 +306,9 @@ class PrioritizedReplayBuffer(BaseBuffer):
             # Get the index of the parent node
             idx //= 2
             # Value of the parent node is the sum of it's two children
-            self.priority_sum[idx] = self.priority_sum[2 * idx] + self.priority_sum[2 * idx + 1]
+            self.priority_sum[idx] = (
+                self.priority_sum[2 * idx] + self.priority_sum[2 * idx + 1]
+            )
 
     def _sum(self):
         """
@@ -324,7 +358,7 @@ class PrioritizedReplayBuffer(BaseBuffer):
             self.max_priority = max(self.max_priority, priority)
 
             # Calculate $p_i^\alpha$
-            priority_alpha = priority ** self.alpha
+            priority_alpha = priority**self.alpha
             # Update the trees
             self._set_priority_min(idx, priority_alpha)
             self._set_priority_sum(idx, priority_alpha)
@@ -351,16 +385,18 @@ class TVReplayBuffer(BaseBuffer):
     """
 
     def __init__(
-            self,
-            buffer_size: int,
-            observation_space: spaces.Space,
-            action_space: spaces.Space,
-            device: Union[th.device, str] = "auto",
-            n_envs: int = 1,
-            optimize_memory_usage: bool = False,
-            handle_timeout_termination: bool = True,
+        self,
+        buffer_size: int,
+        observation_space: spaces.Space,
+        action_space: spaces.Space,
+        device: Union[th.device, str] = "auto",
+        n_envs: int = 1,
+        optimize_memory_usage: bool = False,
+        handle_timeout_termination: bool = True,
     ):
-        super().__init__(buffer_size, observation_space, action_space, device, n_envs=n_envs)
+        super().__init__(
+            buffer_size, observation_space, action_space, device, n_envs=n_envs
+        )
 
         # Markov add
         self.best_indexes = None
@@ -381,16 +417,23 @@ class TVReplayBuffer(BaseBuffer):
 
         # Maintain segment binary trees to take sum and find minimum over a range
 
-        self.observations = np.zeros((self.buffer_size, self.n_envs) + self.obs_shape, dtype=observation_space.dtype)
+        self.observations = np.zeros(
+            (self.buffer_size, self.n_envs) + self.obs_shape,
+            dtype=observation_space.dtype,
+        )
 
         if optimize_memory_usage:
             # `observations` contains also the next observation
             self.next_observations = None
         else:
-            self.next_observations = np.zeros((self.buffer_size, self.n_envs) + self.obs_shape,
-                                              dtype=observation_space.dtype)
+            self.next_observations = np.zeros(
+                (self.buffer_size, self.n_envs) + self.obs_shape,
+                dtype=observation_space.dtype,
+            )
 
-        self.actions = np.zeros((self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype)
+        self.actions = np.zeros(
+            (self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype
+        )
 
         self.rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
         self.dones = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
@@ -399,7 +442,12 @@ class TVReplayBuffer(BaseBuffer):
         self.handle_timeout_termination = handle_timeout_termination
         self.timeouts = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
         if psutil is not None:
-            total_memory_usage = self.observations.nbytes + self.actions.nbytes + self.rewards.nbytes + self.dones.nbytes
+            total_memory_usage = (
+                self.observations.nbytes
+                + self.actions.nbytes
+                + self.rewards.nbytes
+                + self.dones.nbytes
+            )
 
             if self.next_observations is not None:
                 total_memory_usage += self.next_observations.nbytes
@@ -414,13 +462,13 @@ class TVReplayBuffer(BaseBuffer):
                 )
 
     def add(
-            self,
-            obs: np.ndarray,
-            next_obs: np.ndarray,
-            action: np.ndarray,
-            reward: np.ndarray,
-            done: np.ndarray,
-            infos: List[Dict[str, Any]],
+        self,
+        obs: np.ndarray,
+        next_obs: np.ndarray,
+        action: np.ndarray,
+        reward: np.ndarray,
+        done: np.ndarray,
+        infos: List[Dict[str, Any]],
     ) -> None:
         # Markov add
         idx = self.pos
@@ -438,7 +486,9 @@ class TVReplayBuffer(BaseBuffer):
         self.observations[self.pos] = np.array(obs).copy()
 
         if self.optimize_memory_usage:
-            self.observations[(self.pos + 1) % self.buffer_size] = np.array(next_obs).copy()
+            self.observations[(self.pos + 1) % self.buffer_size] = np.array(
+                next_obs
+            ).copy()
         else:
             self.next_observations[self.pos] = np.array(next_obs).copy()
 
@@ -447,24 +497,33 @@ class TVReplayBuffer(BaseBuffer):
         self.dones[self.pos] = np.array(done).copy()
 
         if self.handle_timeout_termination:
-            self.timeouts[self.pos] = np.array([info.get("TimeLimit.truncated", False) for info in infos])
+            self.timeouts[self.pos] = np.array(
+                [info.get("TimeLimit.truncated", False) for info in infos]
+            )
 
         self.pos += 1
         if self.pos == self.buffer_size:
             self.full = True
             self.pos = 0
 
-    def sample(self, batch_size: int, env: Optional[VecNormalize] = None) -> ReplayBufferSamples:
+    def sample(
+        self, batch_size: int, env: Optional[VecNormalize] = None
+    ) -> ReplayBufferSamples:
         """
         ### Sample from buffer
         """
         if self.best_indexes is not None:
-            best_indexes = np.random.choice(self.best_indexes, size=int(batch_size * 0.1))
+            best_indexes = np.random.choice(
+                self.best_indexes, size=int(batch_size * 0.1)
+            )
         else:
             best_indexes = np.array([]).astype(int)
         random_indexes_size = batch_size - best_indexes.size
-        random_indexes = np.random.randint(0, high=self.buffer_size if self.full else self.pos,
-                                           size=random_indexes_size)
+        random_indexes = np.random.randint(
+            0,
+            high=self.buffer_size if self.full else self.pos,
+            size=random_indexes_size,
+        )
 
         batch_inds = np.concatenate((best_indexes, random_indexes), axis=0, dtype=int)
 
@@ -472,9 +531,14 @@ class TVReplayBuffer(BaseBuffer):
         env_indices = np.random.randint(0, high=self.n_envs, size=(len(batch_inds),))
 
         if self.optimize_memory_usage:
-            next_obs = self._normalize_obs(self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :], env)
+            next_obs = self._normalize_obs(
+                self.observations[(batch_inds + 1) % self.buffer_size, env_indices, :],
+                env,
+            )
         else:
-            next_obs = self._normalize_obs(self.next_observations[batch_inds, env_indices, :], env)
+            next_obs = self._normalize_obs(
+                self.next_observations[batch_inds, env_indices, :], env
+            )
 
         data = (
             self._normalize_obs(self.observations[batch_inds, env_indices, :], env),
@@ -482,13 +546,18 @@ class TVReplayBuffer(BaseBuffer):
             next_obs,
             # Only use dones that are not due to timeouts
             # deactivated by default (timeouts is initialized as an array of False)
-            (self.dones[batch_inds, env_indices] * (1 - self.timeouts[batch_inds, env_indices])).reshape(-1, 1),
-            self._normalize_reward(self.rewards[batch_inds, env_indices].reshape(-1, 1), env)
+            (
+                self.dones[batch_inds, env_indices]
+                * (1 - self.timeouts[batch_inds, env_indices])
+            ).reshape(-1, 1),
+            self._normalize_reward(
+                self.rewards[batch_inds, env_indices].reshape(-1, 1), env
+            ),
         )
         return ReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
     def _get_samples(
-            self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None
+        self, batch_inds: np.ndarray, env: Optional[VecNormalize] = None
     ) -> Union[ReplayBufferSamples, RolloutBufferSamples]:
         pass
 
@@ -503,16 +572,20 @@ class TVReplayBuffer(BaseBuffer):
                 self.actions[:pos, :, :],
                 self.next_observations[:pos, :, :],
                 (self.dones[:pos, :] * (1 - self.timeouts[:pos, :])).reshape(-1, 1),
-                self.rewards[:pos, :].reshape(-1, 1)
+                self.rewards[:pos, :].reshape(-1, 1),
             )
             data = ReplayBufferSamples(*tuple(map(self.to_torch, data)))
             next_q_values, _ = q_net_target(data.observations).max(dim=1)
             next_q_values = next_q_values.reshape(-1, 1)
             # 1-step TD target
             target_q_values = data.rewards + (1 - data.dones) * gamma * next_q_values
-            current_q_values = th.gather(q_net(data.observations), dim=1, index=data.actions.squeeze(-1))
+            current_q_values = th.gather(
+                q_net(data.observations), dim=1, index=data.actions.squeeze(-1)
+            )
             td_error = th.abs_(target_q_values - current_q_values)
-            best_indexes = th.argsort(td_error, dim=0).squeeze(-1)[:int(self.size() * 0.2)]
+            best_indexes = th.argsort(td_error, dim=0).squeeze(-1)[
+                : int(self.size() * 0.2)
+            ]
             best_indexes, _ = th.sort(best_indexes)
             temp_indexes = th.roll(best_indexes, 1)
             best_indexes = ((best_indexes - temp_indexes) != 1) * best_indexes
@@ -536,11 +609,11 @@ class Module(nn.Module):
         pass
 
     def __init_subclass__(cls, **kwargs):
-        if cls.__dict__.get('__call__', None) is None:
+        if cls.__dict__.get("__call__", None) is None:
             return
 
-        setattr(cls, 'forward', cls.__dict__['__call__'])
-        delattr(cls, '__call__')
+        setattr(cls, "forward", cls.__dict__["__call__"])
+        delattr(cls, "__call__")
 
     @property
     def device(self):
@@ -549,8 +622,9 @@ class Module(nn.Module):
             sample_param = next(params)
             return sample_param.device
         except StopIteration:
-            raise RuntimeError(f"Unable to determine"
-                               f" device of {self.__class__.__name__}") from None
+            raise RuntimeError(
+                f"Unable to determine" f" device of {self.__class__.__name__}"
+            ) from None
 
 
 class Schedule:
@@ -563,7 +637,9 @@ class Piecewise(Schedule):
     ## Piecewise schedule
     """
 
-    def __init__(self, endpoints: List[Tuple[float, float]], outside_value: float = None):
+    def __init__(
+        self, endpoints: List[Tuple[float, float]], outside_value: float = None
+    ):
         """
         ### Initialize
 
@@ -601,15 +677,21 @@ class Piecewise(Schedule):
 
 
 class QFuncLoss(Module):
-
     def __init__(self, gamma: float):
         super().__init__()
         self.gamma = gamma
-        self.huber_loss = nn.SmoothL1Loss(reduction='none')
+        self.huber_loss = nn.SmoothL1Loss(reduction="none")
 
-    def forward(self, q: th.Tensor, action: th.Tensor, double_q: th.Tensor,
-                target_q: th.Tensor, done: th.Tensor, reward: th.Tensor,
-                weights: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
+    def forward(
+        self,
+        q: th.Tensor,
+        action: th.Tensor,
+        double_q: th.Tensor,
+        target_q: th.Tensor,
+        done: th.Tensor,
+        reward: th.Tensor,
+        weights: th.Tensor,
+    ) -> Tuple[th.Tensor, th.Tensor]:
         q_sampled_action = q.gather(-1, action)
         with th.no_grad():
             best_next_action = th.argmax(double_q, -1)
@@ -626,8 +708,17 @@ from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
 from stable_baselines3.common.preprocessing import maybe_transpose
 from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
-from stable_baselines3.common.utils import get_linear_fn, is_vectorized_observation, polyak_update
-from stable_baselines3.dqn.policies import CnnPolicy, DQNPolicy, MlpPolicy, MultiInputPolicy
+from stable_baselines3.common.utils import (
+    get_linear_fn,
+    is_vectorized_observation,
+    polyak_update,
+)
+from stable_baselines3.dqn.policies import (
+    CnnPolicy,
+    DQNPolicy,
+    MlpPolicy,
+    MultiInputPolicy,
+)
 
 SelfDQN = TypeVar("SelfDQN", bound="DQN")
 
@@ -640,31 +731,31 @@ class DQN_PER(OffPolicyAlgorithm):
     }
 
     def __init__(
-            self,
-            policy: Union[str, Type[DQNPolicy]],
-            env: Union[GymEnv, str],
-            learning_rate: Union[float, Schedule] = 1e-4,
-            buffer_size: int = 1_000_000,  # 1e6
-            learning_starts: int = 50000,
-            batch_size: int = 32,
-            tau: float = 1.0,
-            gamma: float = 0.99,
-            train_freq: Union[int, Tuple[int, str]] = 4,
-            gradient_steps: int = 1,
-            replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
-            replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-            optimize_memory_usage: bool = False,
-            target_update_interval: int = 10000,
-            exploration_fraction: float = 0.1,
-            exploration_initial_eps: float = 1.0,
-            exploration_final_eps: float = 0.05,
-            max_grad_norm: float = 10,
-            tensorboard_log: Optional[str] = None,
-            policy_kwargs: Optional[Dict[str, Any]] = None,
-            verbose: int = 0,
-            seed: Optional[int] = None,
-            device: Union[th.device, str] = "auto",
-            _init_setup_model: bool = True,
+        self,
+        policy: Union[str, Type[DQNPolicy]],
+        env: Union[GymEnv, str],
+        learning_rate: Union[float, Schedule] = 1e-4,
+        buffer_size: int = 1_000_000,  # 1e6
+        learning_starts: int = 50000,
+        batch_size: int = 32,
+        tau: float = 1.0,
+        gamma: float = 0.99,
+        train_freq: Union[int, Tuple[int, str]] = 4,
+        gradient_steps: int = 1,
+        replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
+        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
+        optimize_memory_usage: bool = False,
+        target_update_interval: int = 10000,
+        exploration_fraction: float = 0.1,
+        exploration_initial_eps: float = 1.0,
+        exploration_final_eps: float = 0.05,
+        max_grad_norm: float = 10,
+        tensorboard_log: Optional[str] = None,
+        policy_kwargs: Optional[Dict[str, Any]] = None,
+        verbose: int = 0,
+        seed: Optional[int] = None,
+        device: Union[th.device, str] = "auto",
+        _init_setup_model: bool = True,
     ):
 
         super().__init__(
@@ -729,7 +820,9 @@ class DQN_PER(OffPolicyAlgorithm):
                     f"which corresponds to {self.n_envs} steps."
                 )
 
-            self.target_update_interval = max(self.target_update_interval // self.n_envs, 1)
+            self.target_update_interval = max(
+                self.target_update_interval // self.n_envs, 1
+            )
 
     def _create_aliases(self) -> None:
         self.q_net = self.policy.q_net
@@ -742,9 +835,13 @@ class DQN_PER(OffPolicyAlgorithm):
         """
         self._n_calls += 1
         if self._n_calls % self.target_update_interval == 0:
-            polyak_update(self.q_net.parameters(), self.q_net_target.parameters(), self.tau)
+            polyak_update(
+                self.q_net.parameters(), self.q_net_target.parameters(), self.tau
+            )
 
-        self.exploration_rate = self.exploration_schedule(self._current_progress_remaining)
+        self.exploration_rate = self.exploration_schedule(
+            self._current_progress_remaining
+        )
         self.logger.record("rollout/exploration_rate", self.exploration_rate)
 
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
@@ -755,7 +852,9 @@ class DQN_PER(OffPolicyAlgorithm):
         losses = []
         for _ in range(gradient_steps):
             # Sample replay buffer
-            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            replay_data = self.replay_buffer.sample(
+                batch_size, env=self._vec_normalize_env
+            )
             with th.no_grad():
                 # Compute the next Q-values using the target network
                 next_q_values = self.q_net_target(replay_data.next_observations)
@@ -764,19 +863,24 @@ class DQN_PER(OffPolicyAlgorithm):
                 # Avoid potential broadcast issue
                 next_q_values = next_q_values.reshape(-1, 1)
                 # 1-step TD target
-                target_q_values = replay_data.rewards + (1 - replay_data.dones) * self.gamma * next_q_values
+                target_q_values = (
+                    replay_data.rewards
+                    + (1 - replay_data.dones) * self.gamma * next_q_values
+                )
 
             # Get current Q-values estimates
             current_q_values = self.q_net(replay_data.observations)
 
             # Compute Temporal Difference (TD) errors, $\delta$, and the loss, $\mathcal{L}(\theta)$.
-            td_errors, loss = self.loss_func(current_q_values,
-                                             replay_data.actions,
-                                             next_q_values,
-                                             target_q_values,
-                                             replay_data.dones,
-                                             replay_data.rewards,
-                                             replay_data.weights)
+            td_errors, loss = self.loss_func(
+                current_q_values,
+                replay_data.actions,
+                next_q_values,
+                target_q_values,
+                replay_data.dones,
+                replay_data.rewards,
+                replay_data.weights,
+            )
 
             # Calculate priorities for replay buffer $p_i = |\delta_i| + \epsilon$
             new_priorities = np.abs(td_errors.cpu().numpy()) + 1e-6
@@ -784,7 +888,9 @@ class DQN_PER(OffPolicyAlgorithm):
             self.replay_buffer.update_priorities(replay_data.indexes, new_priorities)
 
             # Retrieve the q-values for the actions from the replay buffer
-            current_q_values = th.gather(current_q_values, dim=1, index=replay_data.actions.long())
+            current_q_values = th.gather(
+                current_q_values, dim=1, index=replay_data.actions.long()
+            )
 
             losses.append(loss.item())
 
@@ -803,11 +909,11 @@ class DQN_PER(OffPolicyAlgorithm):
         self.logger.record("train/loss", np.mean(losses))
 
     def predict(
-            self,
-            observation: np.ndarray,
-            state: Optional[Tuple[np.ndarray, ...]] = None,
-            episode_start: Optional[np.ndarray] = None,
-            deterministic: bool = False,
+        self,
+        observation: np.ndarray,
+        state: Optional[Tuple[np.ndarray, ...]] = None,
+        episode_start: Optional[np.ndarray] = None,
+        deterministic: bool = False,
     ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
         """
         Overrides the base_class predict function to include epsilon-greedy exploration.
@@ -820,7 +926,10 @@ class DQN_PER(OffPolicyAlgorithm):
             (used in recurrent policies)
         """
         if not deterministic and np.random.rand() < self.exploration_rate:
-            if is_vectorized_observation(maybe_transpose(observation, self.observation_space), self.observation_space):
+            if is_vectorized_observation(
+                maybe_transpose(observation, self.observation_space),
+                self.observation_space,
+            ):
                 if isinstance(self.observation_space, gym.spaces.Dict):
                     n_batch = observation[list(observation.keys())[0]].shape[0]
                 else:
@@ -829,17 +938,19 @@ class DQN_PER(OffPolicyAlgorithm):
             else:
                 action = np.array(self.action_space.sample())
         else:
-            action, state = self.policy.predict(observation, state, episode_start, deterministic)
+            action, state = self.policy.predict(
+                observation, state, episode_start, deterministic
+            )
         return action, state
 
     def learn(
-            self: SelfDQN,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 4,
-            tb_log_name: str = "DQN",
-            reset_num_timesteps: bool = True,
-            progress_bar: bool = False,
+        self: SelfDQN,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 4,
+        tb_log_name: str = "DQN",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
     ) -> SelfDQN:
 
         return super().learn(
@@ -868,31 +979,31 @@ class DQN_TV(OffPolicyAlgorithm):
     }
 
     def __init__(
-            self,
-            policy: Union[str, Type[DQNPolicy]],
-            env: Union[GymEnv, str],
-            learning_rate: Union[float, Schedule] = 1e-4,
-            buffer_size: int = 1_000_000,  # 1e6
-            learning_starts: int = 50000,
-            batch_size: int = 32,
-            tau: float = 1.0,
-            gamma: float = 0.99,
-            train_freq: Union[int, Tuple[int, str]] = 4,
-            gradient_steps: int = 1,
-            replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
-            replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
-            optimize_memory_usage: bool = False,
-            target_update_interval: int = 10000,
-            exploration_fraction: float = 0.1,
-            exploration_initial_eps: float = 1.0,
-            exploration_final_eps: float = 0.05,
-            max_grad_norm: float = 10,
-            tensorboard_log: Optional[str] = None,
-            policy_kwargs: Optional[Dict[str, Any]] = None,
-            verbose: int = 0,
-            seed: Optional[int] = None,
-            device: Union[th.device, str] = "auto",
-            _init_setup_model: bool = True,
+        self,
+        policy: Union[str, Type[DQNPolicy]],
+        env: Union[GymEnv, str],
+        learning_rate: Union[float, Schedule] = 1e-4,
+        buffer_size: int = 1_000_000,  # 1e6
+        learning_starts: int = 50000,
+        batch_size: int = 32,
+        tau: float = 1.0,
+        gamma: float = 0.99,
+        train_freq: Union[int, Tuple[int, str]] = 4,
+        gradient_steps: int = 1,
+        replay_buffer_class: Optional[Type[ReplayBuffer]] = None,
+        replay_buffer_kwargs: Optional[Dict[str, Any]] = None,
+        optimize_memory_usage: bool = False,
+        target_update_interval: int = 10000,
+        exploration_fraction: float = 0.1,
+        exploration_initial_eps: float = 1.0,
+        exploration_final_eps: float = 0.05,
+        max_grad_norm: float = 10,
+        tensorboard_log: Optional[str] = None,
+        policy_kwargs: Optional[Dict[str, Any]] = None,
+        verbose: int = 0,
+        seed: Optional[int] = None,
+        device: Union[th.device, str] = "auto",
+        _init_setup_model: bool = True,
     ):
 
         super().__init__(
@@ -957,7 +1068,9 @@ class DQN_TV(OffPolicyAlgorithm):
                     f"which corresponds to {self.n_envs} steps."
                 )
 
-            self.target_update_interval = max(self.target_update_interval // self.n_envs, 1)
+            self.target_update_interval = max(
+                self.target_update_interval // self.n_envs, 1
+            )
 
     def _create_aliases(self) -> None:
         self.q_net = self.policy.q_net
@@ -970,9 +1083,13 @@ class DQN_TV(OffPolicyAlgorithm):
         """
         self._n_calls += 1
         if self._n_calls % self.target_update_interval == 0:
-            polyak_update(self.q_net.parameters(), self.q_net_target.parameters(), self.tau)
+            polyak_update(
+                self.q_net.parameters(), self.q_net_target.parameters(), self.tau
+            )
 
-        self.exploration_rate = self.exploration_schedule(self._current_progress_remaining)
+        self.exploration_rate = self.exploration_schedule(
+            self._current_progress_remaining
+        )
         self.logger.record("rollout/exploration_rate", self.exploration_rate)
 
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
@@ -984,7 +1101,9 @@ class DQN_TV(OffPolicyAlgorithm):
         losses = []
         for _ in range(gradient_steps):
             # Sample replay buffer
-            replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
+            replay_data = self.replay_buffer.sample(
+                batch_size, env=self._vec_normalize_env
+            )
 
             with th.no_grad():
                 # Compute the next Q-values using the target network
@@ -994,13 +1113,18 @@ class DQN_TV(OffPolicyAlgorithm):
                 # Avoid potential broadcast issue
                 next_q_values = next_q_values.reshape(-1, 1)
                 # 1-step TD target
-                target_q_values = replay_data.rewards + (1 - replay_data.dones) * self.gamma * next_q_values
+                target_q_values = (
+                    replay_data.rewards
+                    + (1 - replay_data.dones) * self.gamma * next_q_values
+                )
 
             # Get current Q-values estimates
             current_q_values = self.q_net(replay_data.observations)
 
             # Retrieve the q-values for the actions from the replay buffer
-            current_q_values = th.gather(current_q_values, dim=1, index=replay_data.actions.long())
+            current_q_values = th.gather(
+                current_q_values, dim=1, index=replay_data.actions.long()
+            )
 
             self.replay_buffer.update_sample(self.q_net, self.q_net_target, self.gamma)
 
@@ -1022,11 +1146,11 @@ class DQN_TV(OffPolicyAlgorithm):
         self.logger.record("train/loss", np.mean(losses))
 
     def predict(
-            self,
-            observation: np.ndarray,
-            state: Optional[Tuple[np.ndarray, ...]] = None,
-            episode_start: Optional[np.ndarray] = None,
-            deterministic: bool = False,
+        self,
+        observation: np.ndarray,
+        state: Optional[Tuple[np.ndarray, ...]] = None,
+        episode_start: Optional[np.ndarray] = None,
+        deterministic: bool = False,
     ) -> Tuple[np.ndarray, Optional[Tuple[np.ndarray, ...]]]:
         """
         Overrides the base_class predict function to include epsilon-greedy exploration.
@@ -1039,7 +1163,10 @@ class DQN_TV(OffPolicyAlgorithm):
             (used in recurrent policies)
         """
         if not deterministic and np.random.rand() < self.exploration_rate:
-            if is_vectorized_observation(maybe_transpose(observation, self.observation_space), self.observation_space):
+            if is_vectorized_observation(
+                maybe_transpose(observation, self.observation_space),
+                self.observation_space,
+            ):
                 if isinstance(self.observation_space, gym.spaces.Dict):
                     n_batch = observation[list(observation.keys())[0]].shape[0]
                 else:
@@ -1048,17 +1175,19 @@ class DQN_TV(OffPolicyAlgorithm):
             else:
                 action = np.array(self.action_space.sample())
         else:
-            action, state = self.policy.predict(observation, state, episode_start, deterministic)
+            action, state = self.policy.predict(
+                observation, state, episode_start, deterministic
+            )
         return action, state
 
     def learn(
-            self: SelfDQN,
-            total_timesteps: int,
-            callback: MaybeCallback = None,
-            log_interval: int = 4,
-            tb_log_name: str = "DQN",
-            reset_num_timesteps: bool = True,
-            progress_bar: bool = False,
+        self: SelfDQN,
+        total_timesteps: int,
+        callback: MaybeCallback = None,
+        log_interval: int = 4,
+        tb_log_name: str = "DQN",
+        reset_num_timesteps: bool = True,
+        progress_bar: bool = False,
     ) -> SelfDQN:
 
         return super().learn(
@@ -1080,65 +1209,112 @@ class DQN_TV(OffPolicyAlgorithm):
 
 
 import threading
-import time
 
 from stable_baselines3.dqn import DQN
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     envs = [
-            # "Acrobot-v1",
-            # "CartPole-v1",
-            # "MountainCar-v0",
-            # "LunarLander-v2",
-            "ALE/Breakout-v5",
-            "ALE/Pong-v5",
-            "ALE/SpaceInvaders-v5",
-            "ALE/MsPacman-v5",
-            "ALE/Alien-v5",
-            "ALE/Amidar-v5",
-            "ALE/Assault-v5",
-            "ALE/BankHeist-v5"]
-    threads = []
+        "ALE/Breakout-v5",
+        "ALE/Pong-v5",
+        "ALE/SpaceInvaders-v5",
+        "ALE/MsPacman-v5",
+        "ALE/Alien-v5",
+        "ALE/Amidar-v5",
+        "ALE/Assault-v5",
+        "ALE/BankHeist-v5",
+    ]
     for env in envs:
-        print(env)
-        DQN_PER_game_env = gym.make(env)
-        # Create the DQN model using a CNN policy and the PriorityReplayBuffer instance
-        DQN_PER_model = DQN_PER("MlpPolicy",
-                                env=DQN_PER_game_env,
-                                replay_buffer_class=PrioritizedReplayBuffer,
-                    buffer_size=10_000,
-                                verbose=2,
-                                tensorboard_log='./DQN_PER/' + env)
+        GameEnv = make_atari_env(env, n_envs=1, seed=0)
+        GameEnv = VecFrameStack(GameEnv, n_stack=4)
+
+        DQN_PER_model = DQN_PER(
+            "MlpPolicy",
+            env=GameEnv,
+            replay_buffer_class=PrioritizedReplayBuffer,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN_PER/" + env,
+        )
         thread1 = threading.Thread(target=DQN_PER_model.learn, args=(200000,))
         thread1.start()
 
-        DQN_game_env = gym.make(env)
-        DQN_model = DQN("MlpPolicy",
-                        env=DQN_game_env,
-                    buffer_size=10_000,
-                        verbose=2,
-                        tensorboard_log='./DQN/' + env)
-        thread1 = threading.Thread(target=DQN_model.learn, args=(200000,))
+        GameEnv = make_atari_env(env, n_envs=1, seed=0)
+        GameEnv = VecFrameStack(GameEnv, n_stack=4)
+        DQN_model = DQN(
+            "MlpPolicy",
+            env=GameEnv,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN/" + env,
+        )
+        thread2 = threading.Thread(target=DQN_model.learn, args=(200000,))
+        thread2.start()
+
+        GameEnv = make_atari_env(env, n_envs=1, seed=0)
+        GameEnv = VecFrameStack(GameEnv, n_stack=4)
+        DQN_TV_model = DQN_TV(
+            "MlpPolicy",
+            env=GameEnv,
+            replay_buffer_class=TVReplayBuffer,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN_TV/" + env,
+        )
+        thread3 = threading.Thread(target=DQN_TV_model.learn, args=(200000,))
+        thread3.start()
+        thread1.join()
+        thread2.join()
+        thread3.join()
+        del DQN_model
+        del DQN_TV_model
+        del DQN_PER_model
+    envs = [
+        "Acrobot-v1",
+        "CartPole-v1",
+        "MountainCar-v0",
+        "LunarLander-v2",
+    ]
+    for env in envs:
+        GameEnv = gym.make(env)
+
+        DQN_PER_model = DQN_PER(
+            "MlpPolicy",
+            env=GameEnv,
+            replay_buffer_class=PrioritizedReplayBuffer,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN_PER/" + env,
+        )
+        thread1 = threading.Thread(target=DQN_PER_model.learn, args=(200000,))
         thread1.start()
 
-        DQN_game_env = gym.make(env)
-        DQN_TV_model = DQN_TV("MlpPolicy",
-                              env=DQN_game_env,
-                              replay_buffer_class=TVReplayBuffer,
-                    buffer_size=10_000,
-                              verbose=2,
-                              tensorboard_log='./DQN_TV/' + env)
-        thread1 = threading.Thread(target=DQN_TV_model.learn, args=(200000,))
-        thread1.start()
-    # env = make_atari_env(envs[0],n_envs=4,seed=0)
-    # env = VecFrameStack(env,n_stack=4)
-    # DQN_PER("MlpPolicy",
-    # env=env,
-    # buffer_size=10_000,
-    # verbose=2).learn(100000)
+        GameEnv = gym.make(env)
+        DQN_model = DQN(
+            "MlpPolicy",
+            env=GameEnv,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN/" + env,
+        )
+        thread2 = threading.Thread(target=DQN_model.learn, args=(200000,))
+        thread2.start()
 
-    while True:
-        time.sleep(10)
-        if threading.activeCount() == 1:
-            break
+        GameEnv = gym.make(env)
+        DQN_TV_model = DQN_TV(
+            "MlpPolicy",
+            env=GameEnv,
+            replay_buffer_class=TVReplayBuffer,
+            buffer_size=2000,
+            verbose=2,
+            tensorboard_log="./DQN_TV/" + env,
+        )
+        thread3 = threading.Thread(target=DQN_TV_model.learn, args=(200000,))
+        thread3.start()
+        thread1.join()
+        thread2.join()
+        thread3.join()
+        del DQN_model
+        del DQN_TV_model
+        del DQN_PER_model
