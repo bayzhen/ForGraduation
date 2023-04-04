@@ -18,4 +18,3 @@ Here's a class diagram showing the main classes in the plugin:
     +----------------+
     | RL_ENV_Controller |
     +----------------+
-```
