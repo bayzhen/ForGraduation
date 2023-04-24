@@ -72,6 +72,7 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 generator = Generator(latent_dim).to(device)
