@@ -65,12 +65,16 @@ class Discriminator(nn.Module):
             nn.Conv2d(256, 512, 4, 2, 1, bias=False),
             nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(512, 1, 4, 1, 0, bias=False),
+            nn.Conv2d(512, 1024, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(1024),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(1024, 1, 4, 1, 0, bias=False),
             nn.Sigmoid()
         )
 
     def forward(self, x):
         return self.model(x)
+
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
