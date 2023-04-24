@@ -93,12 +93,14 @@ for epoch in range(num_epochs):
         # 训练鉴别器
         optimizer_D.zero_grad()
         outputs = discriminator(real_images)
+        outputs = outputs.view(batch_size, -1)
         real_loss = criterion(outputs, real_labels)
         real_score = outputs
 
         z = torch.randn(batch_size, latent_dim, 1, 1).to(device)
         fake_images = generator(z)
         outputs = discriminator(fake_images.detach())
+        outputs = outputs.view(batch_size, -1)
         fake_loss = criterion(outputs, fake_labels)
         fake_score = outputs
 
@@ -109,6 +111,7 @@ for epoch in range(num_epochs):
         # 训练生成器
         optimizer_G.zero_grad()
         outputs = discriminator(fake_images)
+        outputs = outputs.view(batch_size, -1)
         g_loss = criterion(outputs, real_labels)
         g_loss.backward()
         optimizer_G.step()
